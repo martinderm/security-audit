@@ -7,6 +7,17 @@ description: Security guidance and vulnerability review for codebases, APIs, ser
 
 Find vulnerabilities that violate a real trust boundary, then give owners the source evidence, safe reproduction, priority, and smallest effective fix. This is a defensive, source-first workflow. A candidate without a concrete affected principal, resource, or security outcome is not a confirmed finding.
 
+## Local operation (Daedalus ecosystem)
+
+This section is a local addition; the upstream workflow above and below stays as written.
+
+- **Output location**: prefer `runs/security-audit/<repo-name>/run-<N>` relative to the target workspace, but only after `git check-ignore` confirms version control ignores that path. Otherwise use the upstream external default. Never commit audit artifacts.
+- **Delegation**: map upstream `research` to `daedalus-explorer`, and upstream `general` to `daedalus-explorer` for source work or `daedalus-coder` for bounded sandboxed execution. Preserve the independence rule: a verifier is never the agent that found the candidate.
+- **Sandbox**: without an OS-enforced sandbox, run no target code and keep every execution-dependent lead at `needs_validation`. Static source evidence and existing-check results remain allowed.
+- **Validators**: `validate-findings.cjs` and `validate-coverage-ledger.cjs` need Node.js, stay zero-dependency, and require POSIX `O_NOFOLLOW`/`O_NONBLOCK`. On Windows run them under WSL2 or Linux. Without that protection, full audit mode cannot reach a validated terminal state: report the blocker instead of relaxing the check. Use `node --test` for the bundled `.test.cjs` files.
+- **Boundary to code review**: a diff-scoped standards and spec review stays in `code-review`. This skill starts for audits, pen tests, and security findings, and it never modifies target source.
+- **Locking**: hold the workspace lock for the whole audit run when the target workspace uses one.
+
 ## Operating modes
 
 This skill is guidance by default. Loading it does not authorize the complete audit workflow or file creation.
@@ -48,7 +59,7 @@ In full audit mode, resolve these values before reconnaissance:
 - **Skill directory**: the absolute directory containing this `SKILL.md`.
 - **Target**: the absolute repository root under review.
 - **Repo name**: a stable repository identifier from the directory or local Git remote.
-- **Output directory**: a new writable directory outside the target, defaulting to `~/security-audit-skill/<repo-name>/run-<N>`, where `<N>` is the next unused integer. Use a directory inside the target only when the user explicitly selects it and the parent verifies that version control ignores the whole directory. Otherwise stop and request an external path.
+- **Output directory**: a new writable directory outside the target, defaulting to `~/security-audit-skill/<repo-name>/run-<N>`, where `<N>` is the next unused integer. In a Daedalus workspace use the local output rule above instead. Use a directory inside the target only when the user explicitly selects it and the parent verifies that version control ignores the whole directory. Otherwise stop and request an external path.
 - **Source ref**: the reviewed commit and whether the worktree is dirty. Do not treat unreviewed generated or modified files as another revision.
 
 ### Write isolation

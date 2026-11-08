@@ -1,0 +1,8 @@
+# Auto detect text files and perform LF normalization
+* text=auto eol=lf
+
+# Force LF for documentation, data and scripts
+*.md text eol=lf
+*.json text eol=lf
+*.cjs text eol=lf
+*.txt text eol=lf

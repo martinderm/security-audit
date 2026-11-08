@@ -1,106 +1,83 @@
 # security-audit
 
-A coding-agent skill that turns your agent into a security auditor. It orchestrates isolated agents through reconnaissance, coverage-led hunting, candidate validation, structured output, independent record verification, and target-neutral reporting.
+Coding-agent skill for multi-phase security audits with independently verified, machine-readable
+findings. Reconnaissance, coverage-led hunting, adversarial candidate validation, structured output,
+independent record verification and target-neutral reporting.
 
-This is the skill that seeded Cloudflare's vulnerability discovery harness, described in [Build your own vulnerability harness](https://blog.cloudflare.com/build-your-own-vulnerability-harness). The harness grew into a multi-stage, fleet-wide system; this skill is the single-repo starting point it evolved from.
-
-## What it does
-
-The skill runs a structured audit in six phases:
-
-1. **Reconnaissance** -- map architecture, trust boundaries, input surfaces, prior evidence, and deterministic coverage in `architecture.md` and `coverage-ledger.json`.
-2. **Coverage-led hunting** -- assign isolated hunters from ledger units, record their checks, and use coverage critics to find gaps.
-3. **Candidate validation** -- give every unique candidate to a fresh verifier that tries to disprove it.
-4. **Structured output** -- write `confirmed`, `needs_validation`, and `rejected` records to `findings.json` and validate them against `report-schema.json`.
-5. **Independent record verification** -- fresh agents verify final source claims. Material replacements receive another independent verifier.
-6. **Target-neutral reporting** -- derive `REPORT.md`, `FINDINGS-DETAIL.md`, and `NEEDS-VALIDATION.md` from the verified records and coverage ledger.
-
-The parent runs `validate-coverage-ledger.cjs` after creating the ledger and after each later ledger update. It runs `validate-findings.cjs` in Phase 4 and again after every Phase 5 replacement.
-
-The verdicts are distinct: `confirmed` has a complete source trace and bounded observed result, `needs_validation` has an exact unresolved fact and no severity, and `rejected` records a disproved candidate.
-
-Multiple runs against the same repo are additive. The skill uses prior ledgers and findings to target gaps, revalidate changed source, and carry forward current-source evidence without treating stale or unresolved work as covered.
-
-## Files
-
-| File | Purpose |
-|------|---------|
-| `SKILL.md` | Setup, core principles, platform terminology, workflow overview, and audit anti-patterns |
-| `RECONNAISSANCE.md` | Phase 1 reconnaissance prompts and synthesis instructions |
-| `HUNTING.md` | Phase 2 orchestration, hunting methodology, and validation rules |
-| `ATTACK-CLASSES.md` | Core, wildcard, and obvious-things attack prompts |
-| `MEMORY-SAFETY-AND-BINARY.md` | Memory-safety, binary, and kernel hunting classes for native targets |
-| `AI-AND-LLM.md` | Prompt-injection, agent/tool, and output-handling hunting classes for LLM-backed targets |
-| `WEB-PROTOCOL-AND-AUTH.md` | HTTP request-framing, cache, and authentication-protocol hunting classes for HTTP-protocol and auth targets |
-| `CLIENT-SIDE.md` | DOM-injection, messaging-trust, UI-redress, and prototype-pollution hunting classes for client-side/browser targets |
-| `SUPPLY-CHAIN-AND-RELEASE.md` | Dependency, CI, release, signing, update, plugin, and extension hunting classes |
-| `CLOUD-AND-DEPLOYMENT.md` | IAM, infrastructure-as-code, container, serverless, ingress, and runtime-configuration hunting classes |
-| `PROTOCOLS-RPC-AND-MESSAGING.md` | RPC, serialization, queue, broker, webhook, and streaming-protocol hunting classes |
-| `RESOURCE-EXHAUSTION-AND-AVAILABILITY.md` | Shared resource, quota, queue, worker, and operator-spend hunting classes |
-| `DATA-ISOLATION-AND-LIFECYCLE.md` | Tenant isolation, cache, search, export, backup, migration, deletion, and restore hunting classes |
-| `DESKTOP-MOBILE-AND-LOCAL-IPC.md` | Native app, deep-link, webview, exported-component, helper, daemon, and local-IPC hunting classes |
-| `VALIDATION-AND-REPORTING.md` | Phases 3–6 candidate validation, structured output, record verification, and reporting |
-| `report-schema.json` | JSON schema for all three `findings.json` verdicts |
-| `validate-findings.cjs` | Zero-dependency validator for `findings.json` in Phases 4 and 5 |
-| `validate-findings.test.cjs` | Findings-validator tests and producer-compatible fixture checks |
-| `validate-coverage-ledger.cjs` | Zero-dependency validator for `coverage-ledger.json` in Phases 1–5 |
-| `validate-coverage-ledger.test.cjs` | Coverage-ledger validator tests |
-
-## Installation
-
-Install the skill with the [Skills CLI](https://skills.sh):
-
-```bash
-npx skills add https://github.com/cloudflare/security-audit-skill \
-  --skill security-audit
-```
-
-Use `--global` for a user-level installation:
-
-```bash
-npx skills add https://github.com/cloudflare/security-audit-skill \
-  --skill security-audit \
-  --global
-```
-
-Run `npx skills --help` for agent-selection and non-interactive options.
+The workflow writes `run-metadata.json`, `architecture.md`, `coverage-ledger.json`, `findings.json`,
+`REPORT.md`, `FINDINGS-DETAIL.md` and `NEEDS-VALIDATION.md`, and validates the two data files with
+zero-dependency Node.js validators against `report-schema.json`.
 
 ## Usage
 
-Start your coding agent in (or pointed at) the codebase you want to audit, then ask it to do a security audit:
+See [SKILL.md](SKILL.md) for modes, phases and rules. Guidance mode answers security questions and
+focused reviews. Full audit mode runs all six phases and writes artifacts.
 
-```
-security audit this codebase
-```
+Typical triggers: `security audit this codebase`, `find security vulnerabilities in ./src`,
+`do a security review, output to runs/security-audit/<repo>/run-1`.
 
-```
-find security vulnerabilities in ./src
-```
+### Standard template for `AGENTS.md`
 
-```
-do a security review, output to ~/audits/my-project
-```
+```markdown
+## Security Audit Skill
 
-The skill activates automatically when the request matches its trigger (security audit, find vulnerabilities, pen-test the code, etc.). A direct codebase audit or pen-test request uses full audit mode. Security questions and focused vulnerability work use guidance mode unless you request report artifacts. In full audit mode, an unspecified output directory defaults to `~/security-audit-skill/<repo-name>/run-<N>`. The workflow writes inside the target repository only when you explicitly select a directory that version control ignores.
+Dieser Workspace nutzt den Shared Skill bei `../skills/security-audit/` für Sicherheitsaudits.
+Ein Voll-Audit nur auf ausdrückliche Anfrage, mit Workspace-Lock und ohne Änderung am Ziel-Quellcode.
+Siehe [SKILL.md](../skills/security-audit/SKILL.md) für Modi, Phasen und Grenzen.
+```
 
 ## Requirements
 
-- A coding agent with a model that supports tool use and parallel sub-agents
-- Node.js for the zero-dependency findings and coverage-ledger validators
-- An OS-enforced sandbox for target-controlled builds, tests, processes, browsers, emulators, fuzzers, and fixtures. It must disable external networking, use a sanitized allowlisted environment, enforce resource limits, and allow writes only to assigned scratch paths. Without these controls, the workflow keeps the lead as `needs_validation` instead of executing target code.
+- A coding agent with tool use and parallel sub-agents
+- Node.js for `validate-findings.cjs` and `validate-coverage-ledger.cjs` (both zero-dependency). Both
+  validators require POSIX `O_NOFOLLOW`/`O_NONBLOCK`, so run them under Linux, macOS or WSL2. On plain
+  Windows they refuse to read; full audit mode then reports a blocker instead of validated output.
+- An OS-enforced sandbox for any target-controlled build, test, process, browser or fuzzer. Without
+  that sandbox the skill executes no target code and keeps execution-dependent leads at
+  `needs_validation`.
 
-## Design principles
+## Workspace integration
 
-- **Only confirm established boundary failures.** Keep a source-grounded blocked lead as `needs_validation` with its exact unresolved fact.
-- **Adversarial validation.** The agent that checks a finding is never the agent that found it.
-- **Severity requires impact.** Likelihood x impact, not deviation from a checklist.
-- **Defense-in-depth gaps are not vulnerabilities.** If Layer A prevents the attack, the absence of Layer B is a hardening note.
-- **Multiple runs improve coverage.** In our test runs, a single run found roughly half of the vulnerabilities that repeated runs found in total.
+Consuming workspaces link the skill under `.agents/skills/`:
 
-## Contact
+```powershell
+New-Item -ItemType Junction -Path .agents/skills/security-audit -Target ..\skills\security-audit
+```
 
-Questions, feedback, or comparing notes on AI-driven security tooling: security-ai-research@cloudflare.com
+On *nix:
+
+```bash
+ln -s ../skills/security-audit .agents/skills/security-audit
+```
+
+## Provenance
+
+This repository is a fork of
+[cloudflare/security-audit-skill](https://github.com/cloudflare/security-audit-skill) (MIT), pinned at
+commit `c1c8a8c1471069fb0e188eeaff69b8e8db6564a8` (2026-09-14, "Clarify guidance and full audit
+modes"). The upstream project lives at path `skills/security-audit/` in its own repository; this fork
+carries that directory as the repository root so a consumer can mount it as one submodule.
+
+Local deviations from the pinned upstream:
+
+1. **Layout**: skill files moved from `skills/security-audit/` to the repository root.
+2. **`SKILL.md`**: the section `Local operation (Daedalus ecosystem)` covers output location,
+   subagent mapping, the sandbox boundary, the Node/POSIX validator requirement, the boundary to
+   diff-scoped code review and workspace locking. One sentence in the output-directory rule points at
+   that section. All other text is upstream.
+3. **`README.md`**: this file replaces the upstream README; it documents requirements, integration and
+   the update recipe.
+
+## Updating from upstream
+
+1. Pick the upstream commit to pin and note it in this README.
+2. Fetch `skills/security-audit/` from that commit and copy the files to this repository root.
+3. Re-apply deviation 2 in `SKILL.md` and keep deviation 1 (flat layout).
+4. Run `node --test` for both validator suites. Expect full passes on Linux, macOS and WSL2; on plain
+   Windows the findings suite fails by design because `O_NOFOLLOW` is unavailable, and the
+   coverage-ledger suite skips those cases.
+5. Record the new pin and any behaviour change in the commit message.
 
 ## License
 
-MIT -- see [LICENSE](LICENSE).
+[MIT](LICENSE) — upstream copyright Cloudflare, Inc.
